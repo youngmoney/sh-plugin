@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+
+plugin::location() {
+    (cd $(dirname $([ -L "$0" ] && readlink "$0" || echo "$0")) && pwd)
+}
+
+plugin::install() {
+    local bundle_dir="$(plugin::location)/bundle"
+    if [ ! -d "${bundle_dir}" ]; then
+        echo "bundle directory does not exist: ${bundle_dir}"
+        return 1
+    fi
+
+    local repo="$1"
+    if [[ "${repo}" != */* ]]; then
+        echo "${repo} is not a valid repo <user>/<repo>"
+        return 1
+    fi
+    local git_repo="https://github.com/${repo}"
+    local plugin_name=${repo##*/}
+    local install_dir="${bundle_dir}/${plugin_name}"
+    if [ -d "${install_dir}" ]; then
+        echo "${plugin_name}" already installed
+        return 1
+    fi
+    mkdir -p "${install_dir}"
+    if ! git clone -q "${git_repo}" "${install_dir}"; then
+        echo "error cloning the git repo ${git_repo}"
+        return 1
+    fi
+
+    plugin::_link "${plugin_name}"
+}
+
+plugin::_link() {
+    local plugin_location="$(plugin::location)"
+    local bundle_dir="${plugin_location}/bundle"
+    if [ ! -d "${bundle_dir}" ]; then
+        echo "bundle directory does not exist: ${bundle_dir}"
+        return 1
+    fi
+
+    local plugin_name="$1"
+    if [ -z "${plugin_name}" ]; then
+        echo "specify a plugin to link"
+        return 1
+    fi
+
+    local plugin_dir="${bundle_dir}/${plugin_name}"
+    if [ ! -d "${plugin_dir}" ]; then
+        echo "${plugin_name} is not an installed plugin"
+        return 1
+    fi
+
+    local search_dir="${plugin_dir}"
+    if [ -d "${plugin_dir}/bin" ]; then
+        search_dir="${plugin_dir}/bin"
+    fi
+
+    local bin;
+    local bin_dir="${plugin_location}/bin"
+    if [ ! -d "${bin_dir}" ]; then
+        echo "bin directory does not exist: ${bin_dir}"
+        return 1
+    fi
+    find "${search_dir}" -mindepth 1 -maxdepth 1 -perm -u+x -type f -or -type l -follow | while read bin; do
+        local bin_name=${bin##*/}
+        local bin_location="${bin_dir}/${bin_name}"
+        if [ -f "${bin_location}" ]; then
+            echo "a binary named ${bin_name} is already linked."
+            return 1
+        fi
+        ln -s "${bin}" "${bin_location}"
+    done
+}
+
+plugin::list() {
+    local plugin_location="$(plugin::location)"
+    local bundle_dir="${plugin_location}/bundle"
+    if [ ! -d "${bundle_dir}" ]; then
+        echo "bundle directory does not exist: ${bundle_dir}"
+        return 1
+    fi
+    cd "${bundle_dir}" && find . -maxdepth 1 -mindepth 1 -type d | sed 's:^\./::'
+}
+
+plugin::refresh() {
+    local plugin_location="$(plugin::location)"
+    local bundle_dir="${plugin_location}/bundle"
+    if [ ! -d "${bundle_dir}" ]; then
+        echo "bundle directory does not exist: ${bundle_dir}"
+        return 1
+    fi
+    local bin_dir="${plugin_location}/bin"
+    if [ ! -d "${bin_dir}" ]; then
+        echo "bin directory does not exist: ${bin_dir}"
+        return 1
+    fi
+
+    (cd "${bin_dir}" && rm -rf *)
+
+    local bundles
+    plugin::list | while read plugin_name; do
+        plugin::_link "${plugin_name}"
+    done
+}
+
+plugin::uninstall() {
+    local plugin_location="$(plugin::location)"
+    local bundle_dir="${plugin_location}/bundle"
+    if [ ! -d "${bundle_dir}" ]; then
+        echo "bundle directory does not exist: ${bundle_dir}"
+        return 1
+    fi
+
+    plugin_name="$1"
+    if [ -z "$1" ]; then
+        echo "specify a plugin to uninstall"
+        return 1
+    fi
+    if [[ "${plugin_name}" == .* ]]; then
+        echo "plugins do not start with a dot!"
+        return 1
+    fi
+    local plugin_dir="${bundle_dir}/${plugin_name}"
+    if [ ! -d "${plugin_dir}" ]; then
+        echo "${plugin_name} is not installed"
+        return 1
+    fi
+
+    (cd "${bundle_dir}" && rm -rf "${plugin_name}")
+    plugin::refresh
+}
+
+plugin::parse() {
+    local command="$1"
+    shift
+    case "${command}" in
+        install) plugin::install "$@"
+            ;;
+        list) plugin::list "$@"
+            ;;
+        refresh) plugin::refresh "$@"
+            ;;
+        uninstall) plugin::uninstall "$@"
+            ;;
+        *) plugin::help
+            ;;
+    esac
+}
+
+plugin::parse "$@"
