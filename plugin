@@ -6,7 +6,7 @@ plugin::location() {
 
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
     if [ "$1" == "init" ]; then
-        alias plugin="$(plugin::location)/plugin"
+        ln -s -f "$(plugin::location)/plugin" "$(plugin::location)/bin/plugin"
         if [[ ":${PATH}:" != *":$(plugin::location)/bin:"* ]]; then
             PATH="$(plugin::location)/bin${PATH:+":${PATH}"}"
         fi
@@ -111,6 +111,7 @@ plugin::_refresh() {
     fi
 
     (cd "${bin_dir}" && rm -rf *)
+    ln -s -f "${plugin_location}/plugin" "${plugin_location}/bin/plugin"
 
     local bundles
     plugin::list | while read plugin_name; do
