@@ -5,14 +5,13 @@ A simple package manager for scripts. That's it!
 ## Install
 
 ```
-git clone https://github.com/youngmoney/bash-plugin ~/.plugin
+git clone https://github.com/youngmoney/sh-plugin ~/.plugin
 ```
 
 Then in your bashrc:
 
 ```
-alias plugin="~/.plugin/plugin"
-PATH="~/.plugin/bin:$PATH"
+. ~/.plugin/plugin init
 ```
 
 ## Usage
@@ -20,13 +19,13 @@ PATH="~/.plugin/bin:$PATH"
 For a GitHub repo:
 
 ```
-plugin install youngmoney/bash-copy-paste-reminder
+plugin install youngmoney/sh-copy-paste-reminder
 ```
 
 and to remove it:
 
 ```
-plugin install youngmoney/bash-copy-paste-reminder
+plugin uninstall youngmoney/sh-copy-paste-reminder
 ```
 
 To see all installed plugins:
@@ -34,3 +33,21 @@ To see all installed plugins:
 ```
 plugin list
 ```
+
+And to upgrade them:
+
+```
+plugin upgrade
+```
+
+or just one:
+
+```
+plugin upgrade sh-copy-paste-reminder
+```
+
+## Configuration
+
+There is none!
+
+Plugin can run from any directory (feel free to clone it anywhere and call init from that location).

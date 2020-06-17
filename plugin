@@ -1,8 +1,21 @@
 #!/usr/bin/env bash
 
 plugin::location() {
-    (cd $(dirname $([ -L "$0" ] && readlink "$0" || echo "$0")) && pwd)
+    (cd $(dirname $([ -L "${BASH_SOURCE}" ] && readlink "${BASH_SOURCE}" || echo "${BASH_SOURCE}")) && pwd)
 }
+
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+    if [ "$1" == "init" ]; then
+        alias plugin="$(plugin::location)/plugin"
+        if [[ ":${PATH}:" != *":$(plugin::location)/bin:"* ]]; then
+            PATH="$(plugin::location)/bin${PATH:+":${PATH}"}"
+        fi
+    else
+        echo "Do not source plugin unless you are calling init."
+        return 1
+    fi
+    return 0
+fi
 
 plugin::install() {
     local bundle_dir="$(plugin::location)/bundle"
@@ -84,7 +97,7 @@ plugin::list() {
     cd "${bundle_dir}" && find . -maxdepth 1 -mindepth 1 -type d | sed 's:^\./::'
 }
 
-plugin::refresh() {
+plugin::_refresh() {
     local plugin_location="$(plugin::location)"
     local bundle_dir="${plugin_location}/bundle"
     if [ ! -d "${bundle_dir}" ]; then
@@ -103,6 +116,55 @@ plugin::refresh() {
     plugin::list | while read plugin_name; do
         plugin::_link "${plugin_name}"
     done
+}
+
+plugin::_upgrade() {
+    local plugin_location="$(plugin::location)"
+    local bundle_dir="${plugin_location}/bundle"
+    if [ ! -d "${bundle_dir}" ]; then
+        echo "bundle directory does not exist: ${bundle_dir}"
+        return 1
+    fi
+
+    plugin_name="$1"
+    if [ -z "$1" ]; then
+        echo "specify a plugin to upgrade"
+        return 1
+    fi
+    if [[ "${plugin_name}" == .* ]]; then
+        echo "plugins do not start with a dot!"
+        return 1
+    fi
+    local plugin_dir="${bundle_dir}/${plugin_name}"
+    if [ ! -d "${plugin_dir}" ]; then
+        echo "${plugin_name} is not installed"
+        return 1
+    fi
+
+    (cd "${plugin_dir}" && git pull -q)
+}
+
+plugin::upgrade() {
+    local failed=""
+    local plugin_name;
+    if [ "$#" -eq 0 ]; then
+        plugin::list | while read plugin_name; do
+            if ! plugin::_upgrade "${plugin_name}"; then
+                failed="${failed} ${plugin_name}"
+            fi
+        done
+    else
+        for plugin_name in "$@"; do
+            if ! plugin::_upgrade "${plugin_name}"; then
+                failed="${failed} ${plugin_name}"
+            fi
+        done
+    fi
+    plugin::_refresh
+    [ -z "${failed}" ] && return 0
+    echo
+    echo "failed to upgrade:${failed}"
+    return 1
 }
 
 plugin::uninstall() {
@@ -129,7 +191,16 @@ plugin::uninstall() {
     fi
 
     (cd "${bundle_dir}" && rm -rf "${plugin_name}")
-    plugin::refresh
+    plugin::_refresh
+}
+
+plugin::help() {
+    echo "install <user>/<plugin>"
+    echo "list"
+    echo "uninstall <plugin>"
+    echo "upgrade [<plugin>...]"
+    echo "help"
+    return 1
 }
 
 plugin::parse() {
@@ -140,7 +211,7 @@ plugin::parse() {
             ;;
         list) plugin::list "$@"
             ;;
-        refresh) plugin::refresh "$@"
+        upgrade) plugin::upgrade "$@"
             ;;
         uninstall) plugin::uninstall "$@"
             ;;
