@@ -87,6 +87,43 @@ plugin::_link() {
     done
 }
 
+plugin::link() {
+    local bundle_dir="$(plugin::location)/bundle"
+    if [ ! -d "${bundle_dir}" ]; then
+        echo "bundle directory does not exist: ${bundle_dir}"
+        return 1
+    fi
+
+    local path="$1"
+    if [ -z "${path}" ] || [ ! -d "${path}" ]; then
+        echo "${path} is not a directory"
+        return 1
+    fi
+    local absolute_path="$(cd "$(dirname "${path}")" && pwd)/$(basename "${path}")"
+    if [ ! -d "${absolute_path}" ]; then
+        echo "${absolute_path} is not a directory"
+        return 1
+    fi
+
+    local plugin_name="$2"
+    if [ -z "${plugin_name}" ]; then
+        echo "Not a valid plugin name: ${plugin_name}"
+        return 1
+    fi
+    local install_dir="${bundle_dir}/${plugin_name}"
+    if [ -d "${install_dir}" ]; then
+        echo "${plugin_name}" already installed
+        return 1
+    fi
+
+    if ! ln -s "${absolute_path}" "${install_dir}"; then
+        echo "error linking ${absolute_path} to ${install_dir}"
+        return 1
+    fi
+
+    plugin::_link "${plugin_name}"
+}
+
 plugin::list() {
     local plugin_location="$(plugin::location)"
     local bundle_dir="${plugin_location}/bundle"
@@ -200,6 +237,7 @@ plugin::help() {
     echo "list"
     echo "uninstall <plugin>"
     echo "upgrade [<plugin>...]"
+    echo "link <local dir> <plugin>"
     echo "help"
     return 1
 }
@@ -215,6 +253,8 @@ plugin::parse() {
         upgrade) plugin::upgrade "$@"
             ;;
         uninstall) plugin::uninstall "$@"
+            ;;
+        link) plugin::link "$@"
             ;;
         *) plugin::help
             ;;
