@@ -76,7 +76,7 @@ plugin::_link() {
         echo "bin directory does not exist: ${bin_dir}"
         return 1
     fi
-    find "${search_dir}" -mindepth 1 -maxdepth 1 -perm -u+x -type f -or -type l -follow | while read bin; do
+    find -L "${search_dir}" -mindepth 1 -maxdepth 1 -perm -u+x -type f -or -type l -follow | while read bin; do
         local bin_name=${bin##*/}
         local bin_location="${bin_dir}/${bin_name}"
         if [ -f "${bin_location}" ]; then
@@ -131,7 +131,7 @@ plugin::list() {
         echo "bundle directory does not exist: ${bundle_dir}"
         return 1
     fi
-    cd "${bundle_dir}" && find . -maxdepth 1 -mindepth 1 -type d | sed 's:^\./::'
+    cd "${bundle_dir}" && find -L . -maxdepth 1 -mindepth 1 -type d | sed 's:^\./::'
 }
 
 plugin::_refresh() {
@@ -150,10 +150,14 @@ plugin::_refresh() {
     (cd "${bin_dir}" && rm -rf *)
     ln -s -f "${plugin_location}/plugin" "${plugin_location}/bin/plugin"
 
-    local bundles
+    local plugin_name
     plugin::list | while read plugin_name; do
         plugin::_link "${plugin_name}"
     done
+}
+
+plugin::refresh() {
+    plugin::_refresh
 }
 
 plugin::_upgrade() {
@@ -238,6 +242,7 @@ plugin::help() {
     echo "uninstall <plugin>"
     echo "upgrade [<plugin>...]"
     echo "link <local dir> <plugin>"
+    echo "refresh"
     echo "help"
     return 1
 }
@@ -255,6 +260,8 @@ plugin::parse() {
         uninstall) plugin::uninstall "$@"
             ;;
         link) plugin::link "$@"
+            ;;
+        refresh) plugin::refresh "$@"
             ;;
         *) plugin::help
             ;;
