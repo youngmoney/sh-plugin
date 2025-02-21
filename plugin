@@ -45,15 +45,6 @@ plugin::install() {
     plugin::_link "${plugin_name}"
 }
 
-plugin::os-arch() {
-    OS=$(uname | awk '{print tolower($0)}')
-    ARCH=$(arch)
-    if [[ $(uname -a | grep amd64 | wc -l ) > 1 ]]; then
-        ARCH=amd64
-    fi
-    echo "${OS}-${ARCH}"
-}
-
 plugin::_link() {
     local plugin_location="$(plugin::location)"
     local bundle_dir="${plugin_location}/bundle"
@@ -85,18 +76,27 @@ plugin::_link() {
         echo "bin directory does not exist: ${bin_dir}"
         return 1
     fi
-    ARCH_SUFFIX=-$(plugin::os-arch)
     find -L "${search_dir}" -mindepth 1 -maxdepth 1 -perm -u+x -type f -or -type l -follow | while read bin; do
         local bin_name=${bin##*/}
-        if [[ $bin_name == *"$ARCH_SUFFIX" ]]; then
-            bin_name=${bin_name%"$ARCH_SUFFIX"}
-        fi
         local bin_location="${bin_dir}/${bin_name}"
         if [ -f "${bin_location}" ]; then
             echo "a binary named ${bin_name} is already linked."
             return 1
         fi
         ln -s "${bin}" "${bin_location}"
+
+        for SUFFIX in ${PLUGIN_REMOVE_SUFFIX//:/ }; do
+            if [[ $bin_name == *"$SUFFIX" ]]; then
+                local short_name=${bin_name%"$SUFFIX"}
+                local short_location="${bin_dir}/${short_name}"
+                if [ -f "${short_location}" ]; then
+                    echo "a binary named ${short_name} is already linked."
+                    return 1
+                fi
+                ln -s "${bin}" "${short_location}"
+            fi
+        done
+
     done
 }
 
